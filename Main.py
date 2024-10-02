@@ -92,6 +92,7 @@ def process_next_customer():
         if queue_1:
             current_customer_1 = queue_1.popleft()
             save_data()  # Lưu dữ liệu sau khi xử lý công dân
+            st.write(f"{current_customer_1}")
             speak_text(f"Kính mời Công dân: {current_customer_1} lên làm việc tại Bàn 1")  # Phát thông báo
         else:
             st.sidebar.warning("Không có Công dân trong hàng chờ Bàn 1.")
@@ -102,6 +103,7 @@ def process_next_customer():
         if queue_2:
             current_customer_2 = queue_2.popleft()
             save_data()  # Lưu dữ liệu sau khi xử lý công dân
+            st.write(f"{current_customer_2}")
             speak_text(f"Kính mời Công dân: {current_customer_2} lên làm việc tại Bàn 2")  # Phát thông báo
         else:
             st.sidebar.warning("Không có Công dân trong hàng chờ Bàn 2.")
