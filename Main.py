@@ -7,6 +7,7 @@ import base64
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+import tempfile
 
 # Cấu hình trang Streamlit
 st.set_page_config(
@@ -83,10 +84,23 @@ def load_state():
 @st.cache_data
 def create_audio(_text: str) -> str:
     try:
+        # Tạo file tạm thời
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
+            temp_filename = fp.name
+            
+        # Tạo và lưu file âm thanh
         tts = gTTS(text=_text, lang='vi')
-        audio_bytes = tts.get_audio_bytes()
-        audio_base64 = base64.b64encode(audio_bytes).decode()
+        tts.save(temp_filename)
         
+        # Đọc file âm thanh và chuyển đổi sang base64
+        with open(temp_filename, 'rb') as audio_file:
+            audio_bytes = audio_file.read()
+            audio_base64 = base64.b64encode(audio_bytes).decode()
+        
+        # Xóa file tạm thời
+        os.remove(temp_filename)
+        
+        # Trả về HTML audio element
         return f"""
         <audio autoplay="true">
         <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
