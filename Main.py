@@ -110,29 +110,27 @@ def create_audio(_text: str) -> str:
         st.error(f"Lỗi tạo âm thanh: {str(e)}")
         return ""
 
-# Hàm xử lý nghiệp vụ
-def add_customer(name: str, cccd: str) -> bool:
+def add_customer(name: str, cccd: str) -> int:
     if cccd in st.session_state.customers:
-        return False
-    
+        return -1
+
     customer = {
         'name': name,
         'cccd': cccd,
         'ticket_number': st.session_state.next_number,
         'timestamp': time.time()
     }
-    
+
     st.session_state.customers[cccd] = customer
     st.session_state.next_number += 1
-    
+
     # Chọn bàn có ít người chờ hơn
     if len(st.session_state.desk1.queue) <= len(st.session_state.desk2.queue):
         st.session_state.desk1.queue.append(customer)
+        return len(st.session_state.desk1.queue)  # Trả về vị trí trong hàng đợi
     else:
         st.session_state.desk2.queue.append(customer)
-    
-    save_state()
-    return True
+        return len(st.session_state.desk2.queue)  # Trả về vị trí trong hàng đợi
 
 def process_next_customer(desk: DeskManager) -> Optional[dict]:
     if desk.queue:
@@ -180,11 +178,13 @@ def registration_form():
                 st.error("Số CCCD không hợp lệ")
                 return
             
-            if add_customer(name, cccd):
+            position = add_customer(name, cccd)
+            if position != -1:
                 ticket_number = st.session_state.next_number - 1
-                st.success(f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}")
+                st.success(f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}. Bạn ở vị trí {position} trong hàng đợi.")
             else:
                 st.error("Số CCCD đã được đăng ký")
+
 
 if 'current_desk1' not in st.session_state:
     st.session_state.current_desk1 = None
