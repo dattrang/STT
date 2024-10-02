@@ -189,6 +189,11 @@ def registration_form():
             else:
                 st.error("Số CCCD đã được đăng ký")
 
+if 'current_desk1' not in st.session_state:
+    st.session_state.current_desk1 = None
+if 'current_desk2' not in st.session_state:
+    st.session_state.current_desk2 = None
+    
 def process_customers():
     st.sidebar.header("Xử lý khách hàng")
     
@@ -198,21 +203,29 @@ def process_customers():
         if st.button("Gọi khách - Bàn 1", key="desk1_button"):
             customer = process_next_customer(st.session_state.desk1)
             if customer:
-                audio_html = create_audio(
-                    f"Mời khách hàng {customer['name']}, số {customer['ticket_number']}, đến Bàn 1"
-                )
-                st.markdown(audio_html, unsafe_allow_html=True)
-                st.rerun()  # Thay thế experimental_rerun()
+                st.session_state.current_desk1 = customer
     
     with col2:
         if st.button("Gọi khách - Bàn 2", key="desk2_button"):
             customer = process_next_customer(st.session_state.desk2)
             if customer:
-                audio_html = create_audio(
-                    f"Mời khách hàng {customer['name']}, số {customer['ticket_number']}, đến Bàn 2"
-                )
-                st.markdown(audio_html, unsafe_allow_html=True)
-                st.rerun()  # Thay thế experimental_rerun()
+                st.session_state.current_desk2 = customer
+
+    # Hiển thị âm thanh nếu có khách hàng mới
+    if st.session_state.current_desk1:
+        audio_html = create_audio(
+            f"Mời khách hàng {st.session_state.current_desk1['name']}, số {st.session_state.current_desk1['ticket_number']}, đến Bàn 1"
+        )
+        st.markdown(audio_html, unsafe_allow_html=True)
+        st.session_state.current_desk1 = None
+    
+    if st.session_state.current_desk2:
+        audio_html = create_audio(
+            f"Mời khách hàng {st.session_state.current_desk2['name']}, số {st.session_state.current_desk2['ticket_number']}, đến Bàn 2"
+        )
+        st.markdown(audio_html, unsafe_allow_html=True)
+        st.session_state.current_desk2 = None
+
 
 # Tối ưu hóa việc rerun bằng cách sử dụng session state
 if 'needs_rerun' not in st.session_state:
