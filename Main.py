@@ -4,198 +4,244 @@ import json
 import os
 from gtts import gTTS
 import base64
+import time
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
-# Đường dẫn file lưu trữ dữ liệu
-DATA_FILE = "customer_data.json"
+# Cấu hình trang Streamlit
+st.set_page_config(
+    page_title="Hệ thống quản lý hàng đợi",
+    page_icon="🎫",
+    layout="wide"
+)
 
-# Tạo các hàng chờ cho 2 bàn
-queue_1 = deque()
-queue_2 = deque()
+# Định nghĩa classes
+@dataclass
+class Customer:
+    name: str
+    cccd: str
+    ticket_number: int
+    timestamp: float
 
-# Danh sách các số CCCD đã đăng ký với thông tin Công dân
-registered_customers = {}
+class DeskManager:
+    def __init__(self, desk_id: int):
+        self.desk_id = desk_id
+        self.queue = deque()
+        self.current_customer = None
 
-# Biến để lưu trạng thái Công dân đang được phục vụ và số thứ tự tiếp theo
-current_customer_1 = None
-current_customer_2 = None
-next_ticket_number = 1  # Số thứ tự tiếp theo
+# Khởi tạo session state
+if 'initialized' not in st.session_state:
+    st.session_state.desk1 = DeskManager(1)
+    st.session_state.desk2 = DeskManager(2)
+    st.session_state.customers = {}
+    st.session_state.next_number = 1
+    st.session_state.initialized = True
 
-# Hàm để lưu dữ liệu vào file JSON
-def save_data():
+# Hàm xử lý file
+def save_state():
     data = {
-        "queue_1": list(queue_1),
-        "queue_2": list(queue_2),
-        "registered_customers": registered_customers,
-        "current_customer_1": current_customer_1,
-        "current_customer_2": current_customer_2,
-        "next_ticket_number": next_ticket_number  # Lưu số thứ tự tiếp theo
+        'desk1': {
+            'queue': list(st.session_state.desk1.queue),
+            'current': st.session_state.desk1.current_customer
+        },
+        'desk2': {
+            'queue': list(st.session_state.desk2.queue),
+            'current': st.session_state.desk2.current_customer
+        },
+        'customers': st.session_state.customers,
+        'next_number': st.session_state.next_number
     }
-    with open(DATA_FILE, 'w') as f:
-        json.dump(data, f)
+    
+    # Sử dụng biến môi trường cho tên file
+    filename = os.environ.get('QUEUE_DATA_FILE', 'queue_data.json')
+    
+    try:
+        with open(filename, 'w') as f:
+            json.dump(data, f)
+    except Exception as e:
+        st.error(f"Không thể lưu dữ liệu: {str(e)}")
 
-# Hàm để tải dữ liệu từ file JSON
-def load_data():
-    global queue_1, queue_2, registered_customers, current_customer_1, current_customer_2, next_ticket_number
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r') as f:
-            data = json.load(f)
-            queue_1 = deque(data.get("queue_1", []))
-            queue_2 = deque(data.get("queue_2", []))
-            registered_customers = data.get("registered_customers", {})
-            current_customer_1 = data.get("current_customer_1", None)
-            current_customer_2 = data.get("current_customer_2", None)
-            next_ticket_number = data.get("next_ticket_number", 1)  # Lấy số thứ tự tiếp theo từ file
+def load_state():
+    # Sử dụng biến môi trường cho tên file
+    filename = os.environ.get('QUEUE_DATA_FILE', 'queue_data.json')
+    
+    try:
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                data = json.load(f)
+                
+            st.session_state.desk1.queue = deque(data['desk1']['queue'])
+            st.session_state.desk1.current_customer = data['desk1']['current']
+            st.session_state.desk2.queue = deque(data['desk2']['queue'])
+            st.session_state.desk2.current_customer = data['desk2']['current']
+            st.session_state.customers = data['customers']
+            st.session_state.next_number = data['next_number']
+    except Exception as e:
+        st.error(f"Không thể tải dữ liệu: {str(e)}")
 
-# Gọi hàm load dữ liệu khi ứng dụng khởi động
-load_data()
+# Hàm xử lý âm thanh
+@st.cache_data
+def create_audio(_text: str) -> str:
+    try:
+        tts = gTTS(text=_text, lang='vi')
+        audio_bytes = tts.get_audio_bytes()
+        audio_base64 = base64.b64encode(audio_bytes).decode()
+        
+        return f"""
+        <audio autoplay="true">
+        <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+        </audio>
+        """
+    except Exception as e:
+        st.error(f"Lỗi tạo âm thanh: {str(e)}")
+        return ""
 
-# Hàm để phân Công dân vào hàng chờ bàn tiếp khách
-def add_customer_to_queue(customer_name, cccd):
-    global next_ticket_number
-    if len(queue_1) <= len(queue_2):
-        queue_1.append(f"{customer_name} - Số thứ tự {next_ticket_number}")
+# Hàm xử lý nghiệp vụ
+def add_customer(name: str, cccd: str) -> bool:
+    if cccd in st.session_state.customers:
+        return False
+    
+    customer = {
+        'name': name,
+        'cccd': cccd,
+        'ticket_number': st.session_state.next_number,
+        'timestamp': time.time()
+    }
+    
+    st.session_state.customers[cccd] = customer
+    st.session_state.next_number += 1
+    
+    # Chọn bàn có ít người chờ hơn
+    if len(st.session_state.desk1.queue) <= len(st.session_state.desk2.queue):
+        st.session_state.desk1.queue.append(customer)
     else:
-        queue_2.append(f"{customer_name} - Số thứ tự {next_ticket_number}")
-    registered_customers[cccd] = {'name': customer_name, 'ticket_number': next_ticket_number}
-    next_ticket_number += 1  # Tăng số thứ tự
-    save_data()  # Lưu dữ liệu sau khi thêm Công dân
-
-# Hàm để kiểm tra tính hợp lệ của số CCCD
-def is_valid_cccd(cccd):
-    return cccd.isdigit() and len(cccd) == 12 and cccd not in registered_customers
-
-#tạo âm thanh
-def speak_text(text):
-    tts = gTTS(text=text, lang='vi')
-    tts.save("output.mp3")
-
-    # Đọc file âm thanh và mã hóa thành base64 để phát lại
-    audio_file = open("output.mp3", "rb")
-    audio_bytes = audio_file.read()
-    audio_base64 = base64.b64encode(audio_bytes).decode()
-
-    audio_html = f"""
-    <audio autoplay="true">
-    <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-    </audio>
-    """
-
-    st.markdown(audio_html, unsafe_allow_html=True)
-
-
-# Hàm để xử lý Công dân tiếp theo cho mỗi bàn
-def process_next_customer():
-    global current_customer_1, current_customer_2
-
-    # Xử lý khách hàng cho Bàn 1
-    process_1 = st.sidebar.button("Xử lý tiếp khách Bàn 1")
-    if process_1:
-        if queue_1:
-            current_customer_1 = queue_1.popleft()
-            save_data()  # Lưu dữ liệu sau khi xử lý công dân
-            st.write(f"{current_customer_1}")
-            speak_text(f"Kính mời Công dân: {current_customer_1} lên làm việc tại Bàn 1")  # Phát thông báo
-        else:
-            st.sidebar.warning("Không có Công dân trong hàng chờ Bàn 1.")
+        st.session_state.desk2.queue.append(customer)
     
-    # Xử lý khách hàng cho Bàn 2
-    process_2 = st.sidebar.button("Xử lý tiếp khách Bàn 2")
-    if process_2:
-        if queue_2:
-            current_customer_2 = queue_2.popleft()
-            save_data()  # Lưu dữ liệu sau khi xử lý công dân
-            st.write(f"{current_customer_2}")
-            speak_text(f"Kính mời Công dân: {current_customer_2} lên làm việc tại Bàn 2")  # Phát thông báo
-        else:
-            st.sidebar.warning("Không có Công dân trong hàng chờ Bàn 2.")
-    
-    # Thông báo lại cho Bàn 1
-    if current_customer_1 and st.sidebar.button("Thông báo lại Bàn 1"):
-        st.write(f"{current_customer_1}")
-        speak_text(f"Kính mời Công dân: {current_customer_1} lên làm việc tại Bàn 1")
-    
-    # Thông báo lại cho Bàn 2
-    if current_customer_2 and st.sidebar.button("Thông báo lại Bàn 2"):
-        st.write(f"{current_customer_2}")
-        speak_text(f"Kính mời Công dân: {current_customer_2} lên làm việc tại Bàn 2")
-# Hàm để reset file JSON và dữ liệu
-def reset_data():
-    global queue_1, queue_2, registered_customers, current_customer_1, current_customer_2, next_ticket_number
-    queue_1 = deque()
-    queue_2 = deque()
-    registered_customers = {}
-    current_customer_1 = None
-    current_customer_2 = None
-    next_ticket_number = 1  # Đặt lại số thứ tự về 1
-    save_data()  # Lưu dữ liệu trống vào file
-    st.success("Dữ liệu đã được reset thành công!")
+    save_state()
+    return True
 
-# Hàm để thêm Công dân vào hệ thống thông qua nhập trực tiếp
-def add_direct_customer():
-    st.header("Đăng ký trực tiếp")
-    customer_name = st.text_input("Nhập tên Công dân:")
-    cccd = st.text_input("Nhập CCCD (12 số):")
-    
-    if st.button("Đăng ký"):
-        if not customer_name:
-            st.error("Tên Công dân không được để trống.")
-        elif not is_valid_cccd(cccd):
-            st.error("Số CCCD phải là chuỗi 12 chữ số và không được trùng lặp.")
-        else:
-            add_customer_to_queue(customer_name, cccd)
-            st.success(f"Công dân {customer_name} đã được đăng ký thành công với CCCD {cccd} và số thứ tự {next_ticket_number - 1}.")
+def process_next_customer(desk: DeskManager) -> Optional[dict]:
+    if desk.queue:
+        customer = desk.queue.popleft()
+        desk.current_customer = customer
+        save_state()
+        return customer
+    return None
 
-# Hàm để xác minh CCCD khi Công dân đến
-def verify_customer():
-    st.sidebar.header("Kiểm tra lại số thứ tự")
-    cccd = st.sidebar.text_input("Nhập CCCD đã đăng ký để kiểm tra")
+# UI Components
+def render_desk_status(desk: DeskManager):
+    st.subheader(f"Bàn {desk.desk_id}")
     
+    st.markdown("##### Đang phục vụ:")
+    if desk.current_customer:
+        st.markdown(f"""
+        <div style='background-color: #e6f3ff; padding: 10px; border-radius: 5px;'>
+            <h3 style='color: #0066cc;'>{desk.current_customer['name']}</h3>
+            <p>Số thứ tự: {desk.current_customer['ticket_number']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("<p style='color: #666;'>Chưa có khách hàng</p>", unsafe_allow_html=True)
+    
+    st.markdown("##### Danh sách chờ:")
+    if desk.queue:
+        for i, customer in enumerate(desk.queue, 1):
+            st.markdown(f"{i}. {customer['name']} - Số {customer['ticket_number']}")
+    else:
+        st.markdown("<p style='color: #666;'>Không có khách hàng đang chờ</p>", unsafe_allow_html=True)
+
+def registration_form():
+    st.header("Đăng ký mới")
+    with st.form("register_form"):
+        name = st.text_input("Họ và tên:")
+        cccd = st.text_input("Số CCCD (12 số):")
+        submitted = st.form_submit_button("Đăng ký")
+        
+        if submitted:
+            if not name or not cccd:
+                st.error("Vui lòng điền đầy đủ thông tin")
+                return
+            
+            if not cccd.isdigit() or len(cccd) != 12:
+                st.error("Số CCCD không hợp lệ")
+                return
+            
+            if add_customer(name, cccd):
+                ticket_number = st.session_state.next_number - 1
+                st.success(f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}")
+                
+                audio_html = create_audio(f"Xin chào {name}. Số thứ tự của bạn là {ticket_number}")
+                st.markdown(audio_html, unsafe_allow_html=True)
+            else:
+                st.error("Số CCCD đã được đăng ký")
+
+def process_customers():
+    st.sidebar.header("Xử lý khách hàng")
+    
+    col1, col2 = st.sidebar.columns(2)
+    
+    with col1:
+        if st.button("Gọi khách - Bàn 1"):
+            customer = process_next_customer(st.session_state.desk1)
+            if customer:
+                audio_html = create_audio(
+                    f"Mời khách hàng {customer['name']}, số {customer['ticket_number']}, đến Bàn 1"
+                )
+                st.markdown(audio_html, unsafe_allow_html=True)
+                st.experimental_rerun()
+    
+    with col2:
+        if st.button("Gọi khách - Bàn 2"):
+            customer = process_next_customer(st.session_state.desk2)
+            if customer:
+                audio_html = create_audio(
+                    f"Mời khách hàng {customer['name']}, số {customer['ticket_number']}, đến Bàn 2"
+                )
+                st.markdown(audio_html, unsafe_allow_html=True)
+                st.experimental_rerun()
+
+def check_status():
+    st.sidebar.header("Kiểm tra trạng thái")
+    cccd = st.sidebar.text_input("Nhập số CCCD để kiểm tra")
     if st.sidebar.button("Kiểm tra"):
-        if cccd in registered_customers:
-            customer_info = registered_customers[cccd]
-            st.sidebar.success(f"Xác minh thành công! Công dân {customer_info['name']} với số thứ tự {customer_info['ticket_number']} có thể được phục vụ.")
+        if cccd in st.session_state.customers:
+            customer = st.session_state.customers[cccd]
+            
+            # Kiểm tra xem khách hàng đang ở đâu
+            if customer == st.session_state.desk1.current_customer:
+                st.sidebar.success(f"Đang được phục vụ tại Bàn 1")
+            elif customer == st.session_state.desk2.current_customer:
+                st.sidebar.success(f"Đang được phục vụ tại Bàn 2")
+            else:
+                # Kiểm tra trong hàng đợi
+                for desk in [st.session_state.desk1, st.session_state.desk2]:
+                    if customer in desk.queue:
+                        position = list(desk.queue).index(customer) + 1
+                        st.sidebar.info(f"Đang chờ tại Bàn {desk.desk_id}, vị trí thứ {position}")
+                        break
         else:
-            st.sidebar.error("CCCD không hợp lệ hoặc không tồn tại trong hệ thống.")
+            st.sidebar.error("Không tìm thấy thông tin")
 
-# Giao diện Streamlit
-st.title("Ứng dụng quản lý cấp số thứ tự cho Công dân")
-
-# Phần nhập trực tiếp
-add_direct_customer()
-# Phần xử lý Công dân và xác minh CCCD ở sidebar
-process_next_customer()
-verify_customer()
-#if st.sidebar.button('reset'):
-    #reset_data()
-# Hiển thị thông tin Công dân đang được phục vụ ở Bàn 1 và Bàn 2
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("Bàn 1")
-    st.markdown("<h2>Đang phục vụ:</h2>", unsafe_allow_html=True)
-    if current_customer_1:
-        st.markdown(f"<h1 style='color:green;'>{current_customer_1}</h1>", unsafe_allow_html=True)
-    else:
-        st.markdown("<h3 style='color:red;'>Không có Công dân nào đang được phục vụ.</h3>", unsafe_allow_html=True)
+# Main UI
+def main():
+    st.title("🎫 Hệ thống quản lý hàng đợi")
     
-    st.write("Hàng chờ:")
-    if queue_1:
-        for customer in queue_1:
-            st.write(f"- {customer}")
-    else:
-        st.write("Không có Công dân trong hàng chờ")
-
-with col2:
-    st.subheader("Bàn 2")
-    st.markdown("<h2>Đang phục vụ:</h2>", unsafe_allow_html=True)
-    if current_customer_2:
-        st.markdown(f"<h1 style='color:green;'>{current_customer_2}</h1>", unsafe_allow_html=True)
-    else:
-        st.markdown("<h3 style='color:red;'>Không có Công dân nào đang được phục vụ.</h3>", unsafe_allow_html=True)
+    # Load dữ liệu từ file (nếu có)
+    load_state()
     
-    st.write("Hàng chờ:")
-    if queue_2:
-        for customer in queue_2:
-            st.write(f"- {customer}")
-    else:
-        st.write("Không có Công dân trong hàng chờ")
+    # Hiển thị trạng thái các bàn
+    col1, col2 = st.columns(2)
+    with col1:
+        render_desk_status(st.session_state.desk1)
+    with col2:
+        render_desk_status(st.session_state.desk2)
+    
+    # Form đăng ký
+    registration_form()
+    
+    # Xử lý khách hàng và kiểm tra trạng thái
+    process_customers()
+    check_status()
+
+if __name__ == "__main__":
+    main()
