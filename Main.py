@@ -65,7 +65,7 @@ def is_valid_cccd(cccd):
     return cccd.isdigit() and len(cccd) == 12 and cccd not in registered_customers
 
 #tạo âm thanh
-def speak_text_gtts(text):
+def speak_text(text):
     tts = gTTS(text=text, lang='vi')
     tts.save("output.mp3")
 
