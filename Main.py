@@ -64,28 +64,15 @@ def add_customer_to_queue(customer_name, cccd):
 def is_valid_cccd(cccd):
     return cccd.isdigit() and len(cccd) == 12 and cccd not in registered_customers
 
-# Hàm để phát thông báo bằng giọng nói sử dụng JavaScript, giọng đọc tiếng Việt
+# Hàm đơn giản để phát âm thanh tiếng Việt bằng Speech Synthesis
 def speak_text(text):
     st.markdown(
         f"""
         <script>
-        // Đợi cho đến khi danh sách giọng đọc được tải
-        window.speechSynthesis.onvoiceschanged = function() {{
-            var msg = new SpeechSynthesisUtterance();
-            msg.text = "{text}";
-            msg.lang = 'vi-VN';  // Đặt ngôn ngữ là tiếng Việt
-            
-            var voices = window.speechSynthesis.getVoices();
-            var vietnameseVoice = voices.find(voice => voice.lang === 'vi-VN');
-            
-            if (vietnameseVoice) {{
-                msg.voice = vietnameseVoice;
-            }} else {{
-                console.log('Không tìm thấy giọng đọc tiếng Việt, sử dụng giọng mặc định.');
-            }}
-            
-            window.speechSynthesis.speak(msg);
-        }};
+        var msg = new SpeechSynthesisUtterance();
+        msg.text = "{text}";
+        msg.lang = 'vi-VN';
+        window.speechSynthesis.speak(msg);
         </script>
         """,
         unsafe_allow_html=True
