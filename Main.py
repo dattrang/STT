@@ -106,7 +106,7 @@ def verify_customer():
             st.sidebar.error("CCCD không hợp lệ hoặc không tồn tại trong hệ thống.")
 
 # Giao diện Streamlit
-st.title("Ứng dụng quản lý cấp số thứ tự cho khách hàng")
+st.title("Ứng dụng quản lý cấp số thứ tự cho công dân")
 
 # Phần nhập trực tiếp
 add_direct_customer()
