@@ -64,23 +64,33 @@ def add_customer_to_queue(customer_name, cccd):
 def is_valid_cccd(cccd):
     return cccd.isdigit() and len(cccd) == 12 and cccd not in registered_customers
 
-# Hàm để phát thông báo bằng giọng nói sử dụng gTTS
+# Hàm để phát thông báo bằng giọng nói sử dụng JavaScript, giọng đọc tiếng Việt
 def speak_text(text):
-    tts = gTTS(text=text, lang='vi')
-    tts.save("output.mp3")
+    st.markdown(
+        f"""
+        <script>
+        // Đợi cho đến khi danh sách giọng đọc được tải
+        window.speechSynthesis.onvoiceschanged = function() {{
+            var msg = new SpeechSynthesisUtterance();
+            msg.text = "{text}";
+            msg.lang = 'vi-VN';  // Đặt ngôn ngữ là tiếng Việt
+            
+            var voices = window.speechSynthesis.getVoices();
+            var vietnameseVoice = voices.find(voice => voice.lang === 'vi-VN');
+            
+            if (vietnameseVoice) {{
+                msg.voice = vietnameseVoice;
+            }} else {{
+                console.log('Không tìm thấy giọng đọc tiếng Việt, sử dụng giọng mặc định.');
+            }}
+            
+            window.speechSynthesis.speak(msg);
+        }};
+        </script>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # Đọc file âm thanh và mã hóa thành base64 để phát lại
-    audio_file = open("output.mp3", "rb")
-    audio_bytes = audio_file.read()
-    audio_base64 = base64.b64encode(audio_bytes).decode()
-
-    audio_html = f"""
-    <audio autoplay="true">
-    <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-    </audio>
-    """
-
-    st.markdown(audio_html, unsafe_allow_html=True)
 
 # Hàm để xử lý Công dân tiếp theo cho mỗi bàn
 def process_next_customer():
