@@ -64,19 +64,23 @@ def add_customer_to_queue(customer_name, cccd):
 def is_valid_cccd(cccd):
     return cccd.isdigit() and len(cccd) == 12 and cccd not in registered_customers
 
-# Hàm đơn giản để phát âm thanh tiếng Việt bằng Speech Synthesis
-def speak_text(text):
-    st.markdown(
-        f"""
-        <script>
-        var msg = new SpeechSynthesisUtterance();
-        msg.text = "{text}";
-        msg.lang = 'vi-VN';
-        window.speechSynthesis.speak(msg);
-        </script>
-        """,
-        unsafe_allow_html=True
-    )
+#tạo âm thanh
+def speak_text_gtts(text):
+    tts = gTTS(text=text, lang='vi')
+    tts.save("output.mp3")
+
+    # Đọc file âm thanh và mã hóa thành base64 để phát lại
+    audio_file = open("output.mp3", "rb")
+    audio_bytes = audio_file.read()
+    audio_base64 = base64.b64encode(audio_bytes).decode()
+
+    audio_html = f"""
+    <audio autoplay="true">
+    <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+    </audio>
+    """
+
+    st.markdown(audio_html, unsafe_allow_html=True)
 
 
 # Hàm để xử lý Công dân tiếp theo cho mỗi bàn
