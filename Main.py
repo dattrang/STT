@@ -81,27 +81,27 @@ def process_next_customer():
 # Hàm để thêm khách hàng vào hệ thống thông qua nhập trực tiếp
 def add_direct_customer():
     st.header("Đăng ký trực tiếp")
-    customer_name = st.text_input("Nhập tên khách hàng:")
+    customer_name = st.text_input("Nhập họ và tên Công dân:")
     cccd = st.text_input("Nhập CCCD (12 số):")
     
     if st.button("Đăng ký"):
         if not customer_name:
-            st.error("Tên khách hàng không được để trống.")
+            st.error("Họ và tên không được để trống.")
         elif not is_valid_cccd(cccd):
             st.error("Số CCCD phải là chuỗi 12 chữ số và không được trùng lặp.")
         else:
             add_customer_to_queue(customer_name, cccd)
-            st.success(f"Khách hàng {customer_name} đã được đăng ký thành công với CCCD {cccd} và số thứ tự {next_ticket_number - 1}.")
+            st.success(f"Công dân {customer_name} đã được đăng ký thành công với CCCD {cccd} và số thứ tự {next_ticket_number - 1}.")
 
 # Hàm để xác minh CCCD khi khách hàng đến
 def verify_customer():
-    st.sidebar.header("Xác minh khách hàng")
+    st.sidebar.header("Xác minh đăng ký")
     cccd = st.sidebar.text_input("Nhập CCCD để xác minh:")
     
     if st.sidebar.button("Xác minh"):
         if cccd in registered_customers:
             customer_info = registered_customers[cccd]
-            st.sidebar.success(f"Xác minh thành công! Khách hàng {customer_info['name']} với số thứ tự {customer_info['ticket_number']} có thể được phục vụ.")
+            st.sidebar.success(f"Xác minh thành công! Công dân {customer_info['name']} với số thứ tự {customer_info['ticket_number']} có thể được phục vụ.")
         else:
             st.sidebar.error("CCCD không hợp lệ hoặc không tồn tại trong hệ thống.")
 
@@ -124,14 +124,14 @@ with col1:
     if current_customer_1:
         st.markdown(f"<h1 style='color:green;'>{current_customer_1}</h1>", unsafe_allow_html=True)
     else:
-        st.markdown("<h3 style='color:red;'>Không có khách hàng nào đang được phục vụ.</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color:red;'>Không có Công dân nào đang thực hiện.</h3>", unsafe_allow_html=True)
     
     st.write("Hàng chờ:")
     if queue_1:
         for customer in queue_1:
             st.write(f"- {customer}")
     else:
-        st.write("Không có khách hàng trong hàng chờ")
+        st.write("Không có công dân trong hàng chờ")
 
 with col2:
     st.subheader("Bàn 2")
@@ -139,11 +139,11 @@ with col2:
     if current_customer_2:
         st.markdown(f"<h1 style='color:green;'>{current_customer_2}</h1>", unsafe_allow_html=True)
     else:
-        st.markdown("<h3 style='color:red;'>Không có khách hàng nào đang được phục vụ.</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color:red;'>Không có công dân nào đang thực hiện thủ tục.</h3>", unsafe_allow_html=True)
     
     st.write("Hàng chờ:")
     if queue_2:
         for customer in queue_2:
             st.write(f"- {customer}")
     else:
-        st.write("Không có khách hàng trong hàng chờ")
+        st.write("Không có công dân trong hàng chờ")
