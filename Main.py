@@ -195,24 +195,28 @@ def process_customers():
     col1, col2 = st.sidebar.columns(2)
     
     with col1:
-        if st.button("Gọi khách - Bàn 1"):
+        if st.button("Gọi khách - Bàn 1", key="desk1_button"):
             customer = process_next_customer(st.session_state.desk1)
             if customer:
                 audio_html = create_audio(
                     f"Mời khách hàng {customer['name']}, số {customer['ticket_number']}, đến Bàn 1"
                 )
                 st.markdown(audio_html, unsafe_allow_html=True)
-                st.experimental_rerun()
+                st.rerun()  # Thay thế experimental_rerun()
     
     with col2:
-        if st.button("Gọi khách - Bàn 2"):
+        if st.button("Gọi khách - Bàn 2", key="desk2_button"):
             customer = process_next_customer(st.session_state.desk2)
             if customer:
                 audio_html = create_audio(
                     f"Mời khách hàng {customer['name']}, số {customer['ticket_number']}, đến Bàn 2"
                 )
                 st.markdown(audio_html, unsafe_allow_html=True)
-                st.experimental_rerun()
+                st.rerun()  # Thay thế experimental_rerun()
+
+# Tối ưu hóa việc rerun bằng cách sử dụng session state
+if 'needs_rerun' not in st.session_state:
+    st.session_state.needs_rerun = False
 
 def check_status():
     st.sidebar.header("Kiểm tra trạng thái")
@@ -236,7 +240,16 @@ def check_status():
         else:
             st.sidebar.error("Không tìm thấy thông tin")
 
-# Main UI
+def process_next_customer(desk: DeskManager) -> Optional[dict]:
+    if desk.queue:
+        customer = desk.queue.popleft()
+        desk.current_customer = customer
+        save_state()
+        st.session_state.needs_rerun = True
+        return customer
+    return None
+
+# Trong hàm main, thêm kiểm tra needs_rerun
 def main():
     st.title("🎫 Hệ thống quản lý hàng đợi")
     
@@ -256,6 +269,11 @@ def main():
     # Xử lý khách hàng và kiểm tra trạng thái
     process_customers()
     check_status()
+    
+    # Kiểm tra và reset flag needs_rerun
+    if st.session_state.needs_rerun:
+        st.session_state.needs_rerun = False
+        st.rerun()
 
 if __name__ == "__main__":
     main()
