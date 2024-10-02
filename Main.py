@@ -183,7 +183,6 @@ def registration_form():
             if add_customer(name, cccd):
                 ticket_number = st.session_state.next_number - 1
                 st.success(f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}")
-                st.markdown(audio_html, unsafe_allow_html=True)
             else:
                 st.error("Số CCCD đã được đăng ký")
 
