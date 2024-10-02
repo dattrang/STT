@@ -108,7 +108,7 @@ def process_next_customer():
     
     # Thông báo lại cho Bàn 1
     if current_customer_1 and st.sidebar.button("Thông báo lại Bàn 1"):
-        st.writ(f"{current_customer_2}")
+        st.write(f"{current_customer_1}")
         speak_text(f"Kính mời Công dân: {current_customer_1} lên làm việc tại Bàn 1")
     
     # Thông báo lại cho Bàn 2
