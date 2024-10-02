@@ -13,9 +13,10 @@ queue_2 = deque()
 # Danh sách các số CCCD đã đăng ký với thông tin khách hàng
 registered_customers = {}
 
-# Biến để lưu trạng thái khách hàng đang được phục vụ
+# Biến để lưu trạng thái khách hàng đang được phục vụ và số thứ tự tiếp theo
 current_customer_1 = None
 current_customer_2 = None
+next_ticket_number = 1  # Số thứ tự tiếp theo
 
 # Hàm để lưu dữ liệu vào file JSON
 def save_data():
@@ -24,14 +25,15 @@ def save_data():
         "queue_2": list(queue_2),
         "registered_customers": registered_customers,
         "current_customer_1": current_customer_1,
-        "current_customer_2": current_customer_2
+        "current_customer_2": current_customer_2,
+        "next_ticket_number": next_ticket_number  # Lưu số thứ tự tiếp theo
     }
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f)
 
 # Hàm để tải dữ liệu từ file JSON
 def load_data():
-    global queue_1, queue_2, registered_customers, current_customer_1, current_customer_2
+    global queue_1, queue_2, registered_customers, current_customer_1, current_customer_2, next_ticket_number
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r') as f:
             data = json.load(f)
@@ -40,17 +42,20 @@ def load_data():
             registered_customers = data.get("registered_customers", {})
             current_customer_1 = data.get("current_customer_1", None)
             current_customer_2 = data.get("current_customer_2", None)
+            next_ticket_number = data.get("next_ticket_number", 1)  # Lấy số thứ tự tiếp theo từ file
 
 # Gọi hàm load dữ liệu khi ứng dụng khởi động
 load_data()
 
 # Hàm để phân khách hàng vào hàng chờ bàn tiếp khách
-def add_customer_to_queue(customer_name, cccd, ticket_number):
+def add_customer_to_queue(customer_name, cccd):
+    global next_ticket_number
     if len(queue_1) <= len(queue_2):
-        queue_1.append(f"{customer_name} - Số thứ tự {ticket_number}")
+        queue_1.append(f"{customer_name} - Số thứ tự {next_ticket_number}")
     else:
-        queue_2.append(f"{customer_name} - Số thứ tự {ticket_number}")
-    registered_customers[cccd] = {'name': customer_name, 'ticket_number': ticket_number}
+        queue_2.append(f"{customer_name} - Số thứ tự {next_ticket_number}")
+    registered_customers[cccd] = {'name': customer_name, 'ticket_number': next_ticket_number}
+    next_ticket_number += 1  # Tăng số thứ tự
     save_data()  # Lưu dữ liệu sau khi thêm khách hàng
 
 # Hàm để kiểm tra tính hợp lệ của số CCCD
@@ -85,9 +90,8 @@ def add_direct_customer():
         elif not is_valid_cccd(cccd):
             st.error("Số CCCD phải là chuỗi 12 chữ số và không được trùng lặp.")
         else:
-            ticket_number = len(queue_1) + len(queue_2) + 1
-            add_customer_to_queue(customer_name, cccd, ticket_number)
-            st.success(f"Khách hàng {customer_name} đã được đăng ký thành công với CCCD {cccd} và số thứ tự {ticket_number}.")
+            add_customer_to_queue(customer_name, cccd)
+            st.success(f"Khách hàng {customer_name} đã được đăng ký thành công với CCCD {cccd} và số thứ tự {next_ticket_number - 1}.")
 
 # Hàm để xác minh CCCD khi khách hàng đến
 def verify_customer():
@@ -121,7 +125,7 @@ with col1:
         st.markdown(f"<h1 style='color:green;'>{current_customer_1}</h1>", unsafe_allow_html=True)
     else:
         st.markdown("<h3 style='color:red;'>Không có khách hàng nào đang được phục vụ.</h3>", unsafe_allow_html=True)
-
+    
     st.write("Hàng chờ:")
     if queue_1:
         for customer in queue_1:
@@ -136,11 +140,10 @@ with col2:
         st.markdown(f"<h1 style='color:green;'>{current_customer_2}</h1>", unsafe_allow_html=True)
     else:
         st.markdown("<h3 style='color:red;'>Không có khách hàng nào đang được phục vụ.</h3>", unsafe_allow_html=True)
-
+    
     st.write("Hàng chờ:")
     if queue_2:
         for customer in queue_2:
             st.write(f"- {customer}")
     else:
         st.write("Không có khách hàng trong hàng chờ")
-
