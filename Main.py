@@ -184,7 +184,7 @@ def registration_form():
                 st.success(f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}. Bạn ở vị trí {position} trong hàng đợi.")
                 
                 # Buộc cập nhật giao diện sau khi đăng ký thành công
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Số CCCD đã được đăng ký")
 
