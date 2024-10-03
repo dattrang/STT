@@ -325,7 +325,7 @@ def process_customers():
         # Kiểm tra nếu mật khẩu đúng
         if password == correct_password:
             st.session_state['authenticated'] = True  # Đánh dấu đã xác thực
-            st.experimental_rerun()  # Tải lại trang để ẩn ô nhập mật khẩu
+            st.rerun()  # Tải lại trang để ẩn ô nhập mật khẩu
         elif password:  # Nếu mật khẩu nhập không đúng
             st.sidebar.error("Mật khẩu không đúng!")
     
@@ -337,27 +337,27 @@ def process_customers():
         with col1:
             if st.button("Bỏ qua - Bàn 1"):
                 skip_customer(1)
-                st.experimental_rerun()
+                st.rerun()
             if st.button("Gọi công dân - Bàn 1"):
                 customer = process_next_customer(1)
                 if customer:
                     announce = f"Mời Công dân {customer.name}, số thứ tự {customer.ticket_number}, đến Bàn 1"
                     st.session_state['audio_message_ban1'] = announce  # Lưu trạng thái cho Bàn 1
                     st.session_state['audio_desk'] = 1
-                    st.experimental_rerun()
+                    st.rerun()
 
         # Bàn 2
         with col2:
             if st.button("Bỏ qua - Bàn 2"):
                 skip_customer(2)
-                st.experimental_rerun()
+                st.rerun()
             if st.button("Gọi công dân - Bàn 2"):
                 customer = process_next_customer(2)
                 if customer:
                     announce = f"Mời công dân {customer.name}, số thứ tự {customer.ticket_number}, đến Bàn 2"
                     st.session_state['audio_message_ban2'] = announce  # Lưu trạng thái cho Bàn 2
                     st.session_state['audio_desk'] = 2
-                    st.experimental_rerun()
+                    st.rerun()
 
         # Hiển thị nút xóa dữ liệu khi mật khẩu đúng
         if st.sidebar.button('Xoá dữ liệu'):
