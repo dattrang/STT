@@ -285,7 +285,8 @@ def registration_form():
 
     # Hiển thị thông báo sau khi trang được làm mới
     if st.session_state['registration_success']:
-        st.success("Đăng ký thành công!")
+        success_msg = f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}. Bạn ở vị trí {position} trong hàng đợi tại Bàn {desk_id}."
+        st.success(success_msg)
         # Sau khi hiển thị thông báo thành công, reset trạng thái
         st.session_state['registration_success'] = False
         
