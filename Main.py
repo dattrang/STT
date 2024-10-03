@@ -246,6 +246,10 @@ def registration_form():
     if 'cccd' not in st.session_state:
         st.session_state['cccd'] = ""
 
+    # Xử lý trạng thái thông báo thành công
+    if 'registration_success' not in st.session_state:
+        st.session_state['registration_success'] = False
+
     with st.form("register_form"):
         # Sử dụng session_state để giữ giá trị của các trường
         name = st.text_input("Họ và tên:", value=st.session_state['name'])
@@ -263,16 +267,28 @@ def registration_form():
 
             position, ticket_number, desk_id = add_customer(name, cccd)
             if position != -1:
+                # Cập nhật trạng thái đăng ký thành công
+                st.session_state['registration_success'] = True
+
+                # Hiển thị thông báo thành công
                 success_msg = f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}. Bạn ở vị trí {position} trong hàng đợi tại Bàn {desk_id}."
                 st.success(success_msg)
 
-                # Làm rỗng các trường thông tin sau khi đăng ký thành công
+                # Làm rỗng các trường thông tin
                 st.session_state['name'] = ""
                 st.session_state['cccd'] = ""
-                st.rerun()  # Làm mới giao diện
+
+                # Cập nhật trang để làm mới các trường
+                st.rerun()
             else:
                 st.error("Số CCCD đã được đăng ký")
 
+    # Hiển thị thông báo sau khi trang được làm mới
+    if st.session_state['registration_success']:
+        st.success("Đăng ký thành công!")
+        # Sau khi hiển thị thông báo thành công, reset trạng thái
+        st.session_state['registration_success'] = False
+        
 def skip_customer(desk_id: int):
     # Mở kết nối với cơ sở dữ liệu
     with get_db_connection() as conn:
