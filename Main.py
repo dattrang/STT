@@ -278,7 +278,7 @@ def registration_form():
                 st.session_state['cccd'] = ""
 
                 # Làm mới trang sau khi hiển thị thông báo thành công
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Số CCCD đã được đăng ký")
 
