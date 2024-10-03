@@ -247,8 +247,8 @@ def registration_form():
         st.session_state['cccd'] = ""
 
     # Xử lý trạng thái thông báo thành công
-    if 'registration_success' not in st.session_state:
-        st.session_state['registration_success'] = False
+    if 'success_msg' not in st.session_state:
+        st.session_state['success_msg'] = ""
 
     with st.form("register_form"):
         # Sử dụng session_state để giữ giá trị của các trường
@@ -267,29 +267,26 @@ def registration_form():
 
             position, ticket_number, desk_id = add_customer(name, cccd)
             if position != -1:
-                # Cập nhật trạng thái đăng ký thành công
-                st.session_state['registration_success'] = True
-
-                # Hiển thị thông báo thành công
-                success_msg = f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}. Bạn ở vị trí {position} trong hàng đợi tại Bàn {desk_id}."
-                st.success(success_msg)
+                # Lưu thông báo thành công trong session_state để đảm bảo nó được hiển thị đầy đủ
+                st.session_state['success_msg'] = (
+                    f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}. "
+                    f"Bạn ở vị trí {position} trong hàng đợi tại Bàn {desk_id}."
+                )
 
                 # Làm rỗng các trường thông tin
                 st.session_state['name'] = ""
                 st.session_state['cccd'] = ""
 
-                # Cập nhật trang để làm mới các trường
-                st.rerun()
+                # Làm mới trang sau khi hiển thị thông báo thành công
+                st.experimental_rerun()
             else:
                 st.error("Số CCCD đã được đăng ký")
 
-    # Hiển thị thông báo sau khi trang được làm mới
-    if st.session_state['registration_success']:
-        success_msg = f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}. Bạn ở vị trí {position} trong hàng đợi tại Bàn {desk_id}."
-        st.success(success_msg)
-        # Sau khi hiển thị thông báo thành công, reset trạng thái
-        st.session_state['registration_success'] = False
-        
+    # Hiển thị thông báo thành công (nếu có)
+    if st.session_state['success_msg']:
+        st.success(st.session_state['success_msg'])
+        st.session_state['success_msg'] = ""  # Xóa thông báo sau khi hiển thị
+
 def skip_customer(desk_id: int):
     # Mở kết nối với cơ sở dữ liệu
     with get_db_connection() as conn:
