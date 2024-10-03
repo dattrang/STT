@@ -239,9 +239,17 @@ def render_desk_status(desk_id: int):
 
 def registration_form():
     st.header("Đăng ký xếp hàng lấy số thứ tự")
+
+    # Kiểm tra và thiết lập giá trị ban đầu cho các trường nhập liệu trong session_state
+    if 'name' not in st.session_state:
+        st.session_state['name'] = ""
+    if 'cccd' not in st.session_state:
+        st.session_state['cccd'] = ""
+
     with st.form("register_form"):
-        name = st.text_input("Họ và tên:")
-        cccd = st.text_input("Số CCCD (12 số):")
+        # Sử dụng session_state để giữ giá trị của các trường
+        name = st.text_input("Họ và tên:", value=st.session_state['name'])
+        cccd = st.text_input("Số CCCD (12 số):", value=st.session_state['cccd'])
         submitted = st.form_submit_button("Đăng ký")
 
         if submitted:
@@ -257,7 +265,11 @@ def registration_form():
             if position != -1:
                 success_msg = f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}. Bạn ở vị trí {position} trong hàng đợi tại Bàn {desk_id}."
                 st.success(success_msg)
-                st.rerun()
+
+                # Làm rỗng các trường thông tin sau khi đăng ký thành công
+                st.session_state['name'] = ""
+                st.session_state['cccd'] = ""
+                st.rerun()  # Làm mới giao diện
             else:
                 st.error("Số CCCD đã được đăng ký")
 
