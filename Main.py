@@ -210,7 +210,7 @@ def render_desk_status(desk_id: int):
     current_customer, queue = get_desk_status(desk_id)
 
     st.subheader(f"Bàn {desk_id}")
-    st.markdown("##### Đang phục vụ:")
+    st.markdown("##### Đang làm thủ tục:")
     
     if current_customer:
         st.markdown(f"""
@@ -220,7 +220,7 @@ def render_desk_status(desk_id: int):
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.markdown("<p style='color: #666;'>Chưa có khách hàng</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color: #666;'>Chưa có công dân làm thủ tục</p>", unsafe_allow_html=True)
 
     st.markdown("##### Danh sách chờ:")
 
@@ -231,7 +231,7 @@ def render_desk_status(desk_id: int):
         for i, customer in enumerate(queue, 1):
             list_html += f"<p>{i}. {customer.name} - Số {customer.ticket_number}</p>"
     else:
-        list_html += "<p style='color: #666;'>Không có khách hàng đang chờ</p>"
+        list_html += "<p style='color: #666;'>Không có công dân đăng ký chờ</p>"
 
     list_html += "</div>"
 
@@ -310,34 +310,59 @@ def skip_customer(desk_id: int):
             st.warning("Không có công dân nào đang làm thủ tục tại bàn này.")
 
 def process_customers():
-    st.sidebar.header("Xử lý tiếp tục")
-    col1, col2 = st.sidebar.columns(2)
+    st.sidebar.header("Xử lý công dân")
 
-    # Bàn 1
-    with col1:
-        if st.button("Bỏ qua - Bàn 1"):
-            skip_customer(1)
-            st.rerun()
-        if st.button("Gọi công dân - Bàn 1"):
-            customer = process_next_customer(1)
-            if customer:
-                announce = f"Mời công dân {customer.name}, số thứ tự {customer.ticket_number}, đến Bàn 1"
-                st.session_state['audio_message_ban1'] = announce  # Lưu trạng thái cho Bàn 1
-                st.session_state['audio_desk'] = 1
-                st.rerun()
+    # Đặt mật khẩu đúng (bạn có thể thay đổi mật khẩu này)
+    correct_password = "Tanhung@2020"
 
-    # Bàn 2
-    with col2:
-        if st.button("Bỏ qua - Bàn 2"):
-            skip_customer(2)
-            st.rerun()
-        if st.button("Gọi công dân - Bàn 2"):
-            customer = process_next_customer(2)
-            if customer:
-                announce = f"Mời công dân {customer.name}, số thứ tự {customer.ticket_number}, đến Bàn 2"
-                st.session_state['audio_message_ban2'] = announce  # Lưu trạng thái cho Bàn 2
-                st.session_state['audio_desk'] = 2
-                st.rerun()
+    # Nếu chưa xác thực, hiển thị ô nhập mật khẩu
+    if 'authenticated' not in st.session_state:
+        st.session_state['authenticated'] = False
+
+    if not st.session_state['authenticated']:
+        password = st.sidebar.text_input("Nhập mật khẩu để xử lý", type="password")
+
+        # Kiểm tra nếu mật khẩu đúng
+        if password == correct_password:
+            st.session_state['authenticated'] = True  # Đánh dấu đã xác thực
+            st.experimental_rerun()  # Tải lại trang để ẩn ô nhập mật khẩu
+        elif password:  # Nếu mật khẩu nhập không đúng
+            st.sidebar.error("Mật khẩu không đúng!")
+    
+    # Sau khi xác thực, hiển thị các nút xử lý và nút xóa dữ liệu
+    if st.session_state['authenticated']:
+        col1, col2 = st.sidebar.columns(2)
+
+        # Bàn 1
+        with col1:
+            if st.button("Bỏ qua - Bàn 1"):
+                skip_customer(1)
+                st.experimental_rerun()
+            if st.button("Gọi công dân - Bàn 1"):
+                customer = process_next_customer(1)
+                if customer:
+                    announce = f"Mời Công dân {customer.name}, số thứ tự {customer.ticket_number}, đến Bàn 1"
+                    st.session_state['audio_message_ban1'] = announce  # Lưu trạng thái cho Bàn 1
+                    st.session_state['audio_desk'] = 1
+                    st.experimental_rerun()
+
+        # Bàn 2
+        with col2:
+            if st.button("Bỏ qua - Bàn 2"):
+                skip_customer(2)
+                st.experimental_rerun()
+            if st.button("Gọi công dân - Bàn 2"):
+                customer = process_next_customer(2)
+                if customer:
+                    announce = f"Mời công dân {customer.name}, số thứ tự {customer.ticket_number}, đến Bàn 2"
+                    st.session_state['audio_message_ban2'] = announce  # Lưu trạng thái cho Bàn 2
+                    st.session_state['audio_desk'] = 2
+                    st.experimental_rerun()
+
+        # Hiển thị nút xóa dữ liệu khi mật khẩu đúng
+        if st.sidebar.button('Xoá dữ liệu'):
+            reset_database()
+
 
 def reset_database():
     conn = get_db_connection()
@@ -419,9 +444,6 @@ def main():
     process_customers()
     check_status()
     
-    # Nút xoá dữ liệu trong sidebar
-    if st.sidebar.button('Xoá dữ liệu'):
-        reset_database()
 
 if __name__ == "__main__":
     main()
