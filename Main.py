@@ -520,15 +520,11 @@ def main():
     # Form đăng ký
     registration_form()
 
-    # Xử lý công dân
+    # Xử lý công dân và chỉ hiện nút sau khi nhập mật khẩu
     process_customers()
 
     # Tính năng kiểm tra số thứ tự (thêm vào sidebar)
     check_status()
-
-    # Thêm tính năng hiển thị/ẩn danh sách và tải xuống
-    toggle_list_display()
-    download_customer_list()
 
 if __name__ == "__main__":
     main()
