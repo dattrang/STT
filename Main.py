@@ -32,9 +32,9 @@ class Customer:
         return Customer(**data)
 
 # Kết nối đến cơ sở dữ liệu SQLite
-@st.cache_resource
 def get_db_connection():
-    conn = sqlite3.connect('queue_management.db', check_same_thread=False)
+    db_path = 'queue_management.db'
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -97,7 +97,7 @@ def init_db():
 
 # Hàm thêm khách hàng mới
 def add_customer(name: str, cccd: str) -> tuple:
-    conn = get_db_connection()
+    conn = get_db_connection()  # Không sử dụng @st.cache_resource
     cursor = conn.cursor()
 
     try:
@@ -136,7 +136,9 @@ def add_customer(name: str, cccd: str) -> tuple:
     except sqlite3.OperationalError as e:
         st.error(f"Lỗi cơ sở dữ liệu: {e}")
         return -1, -1, -1
-    # Không đóng kết nối ở đây. Kết nối sẽ được quản lý bên ngoài.
+    finally:
+        if conn:
+            conn.close()  # Đóng kết nối sau khi hoàn tất mọi thao tác
 
 
 def get_least_busy_desk(cursor) -> int:
