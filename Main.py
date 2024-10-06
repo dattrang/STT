@@ -60,6 +60,22 @@ def download_customer_list():
             mime='text/csv'
         )
 
+def reset_database():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute('DELETE FROM customers')
+        cursor.execute('DELETE FROM desks')
+        cursor.execute('DELETE FROM queues')
+        cursor.execute('INSERT OR IGNORE INTO desks (desk_id) VALUES (1)')
+        cursor.execute('INSERT OR IGNORE INTO desks (desk_id) VALUES (2)')
+        conn.commit()
+    except sqlite3.Error as e:
+        st.error(f"Có lỗi xảy ra khi xoá dữ liệu: {str(e)}")
+    finally:
+        conn.close()
+
 # Kết nối đến cơ sở dữ liệu SQLite
 def get_db_connection():
     db_path = 'queue_management.db'
@@ -461,7 +477,6 @@ def skip_customer(desk_id: int):
     else:
         st.warning("Không có công dân nào đang làm thủ tục tại bàn này.")
 
-
 def process_customers():
     st.sidebar.header("Xử lý công dân")
 
@@ -508,9 +523,15 @@ def process_customers():
                     st.session_state['audio_desk'] = 2
                     st.rerun()
 
-        # Sau khi nhập mật khẩu đúng, hiển thị nút hiển thị danh sách và tải xuống
+        # Hiển thị danh sách và tải xuống danh sách
         toggle_list_display()
         download_customer_list()
+
+        # Nút xoá dữ liệu
+        if st.sidebar.button('Xoá dữ liệu'):
+            reset_database()
+            st.success("Dữ liệu đã được xoá thành công!")
+            st.rerun()
 
 def main():
     st.title("🎫 Hệ thống xếp hàng")
