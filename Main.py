@@ -100,27 +100,45 @@ def add_customer(name: str, cccd: str) -> tuple:
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute('SELECT * FROM customers WHERE cccd = ?', (cccd,))
-    if cursor.fetchone():
+    try:
+        # Kiểm tra nếu khách hàng đã tồn tại
+        cursor.execute('SELECT * FROM customers WHERE cccd = ?', (cccd,))
+        if cursor.fetchone():
+            return -1, -1, -1
+
+        # Tính số thứ tự (ticket_number) tiếp theo
+        cursor.execute('SELECT MAX(ticket_number) FROM customers')
+        result = cursor.fetchone()
+        next_number = result[0] + 1 if result[0] else 1
+
+        # Lưu timestamp hiện tại
+        timestamp = time.time()
+
+        # Tạo khách hàng mới
+        customer = Customer(name, cccd, next_number, timestamp)
+
+        # Thêm khách hàng vào bảng 'customers'
+        cursor.execute('''
+            INSERT INTO customers (cccd, name, ticket_number, timestamp)
+            VALUES (?, ?, ?, ?)
+        ''', (customer.cccd, customer.name, customer.ticket_number, customer.timestamp))
+
+        # Chọn bàn có ít người nhất
+        desk_id = get_least_busy_desk(cursor)
+
+        # Thêm khách hàng vào hàng đợi
+        position = enqueue_customer(cursor, desk_id, customer.cccd)
+
+        # Commit các thay đổi vào cơ sở dữ liệu
+        conn.commit()
+
+        return position, next_number, desk_id
+    except sqlite3.OperationalError as e:
+        st.error(f"Lỗi cơ sở dữ liệu: {e}")
         return -1, -1, -1
+    finally:
+        conn.close()
 
-    cursor.execute('SELECT MAX(ticket_number) FROM customers')
-    result = cursor.fetchone()
-    next_number = result[0] + 1 if result[0] else 1
-
-    timestamp = time.time()
-    customer = Customer(name, cccd, next_number, timestamp)
-
-    cursor.execute('''
-        INSERT INTO customers (cccd, name, ticket_number, timestamp)
-        VALUES (?, ?, ?, ?)
-    ''', (customer.cccd, customer.name, customer.ticket_number, customer.timestamp))
-
-    desk_id = get_least_busy_desk(cursor)
-    position = enqueue_customer(cursor, desk_id, customer.cccd)
-
-    conn.commit()
-    return position, next_number, desk_id
 
 def get_least_busy_desk(cursor) -> int:
     cursor.execute('''
