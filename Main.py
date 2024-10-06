@@ -71,7 +71,8 @@ def init_db():
             cccd TEXT PRIMARY KEY,
             name TEXT,
             ticket_number INTEGER,
-            timestamp REAL
+            timestamp REAL,
+            status TEXT DEFAULT 'Chưa được phục vụ'  -- Thêm cột trạng thái
         )
     ''')
     cursor.execute('''
@@ -97,7 +98,7 @@ def init_db():
 
 # Hàm thêm khách hàng mới
 def add_customer(name: str, cccd: str) -> tuple:
-    conn = get_db_connection()  # Không sử dụng @st.cache_resource
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     try:
@@ -114,14 +115,14 @@ def add_customer(name: str, cccd: str) -> tuple:
         # Lưu timestamp hiện tại
         timestamp = time.time()
 
-        # Tạo khách hàng mới
+        # Tạo khách hàng mới với trạng thái mặc định 'Chưa được phục vụ'
         customer = Customer(name, cccd, next_number, timestamp)
 
         # Thêm khách hàng vào bảng 'customers'
         cursor.execute('''
-            INSERT INTO customers (cccd, name, ticket_number, timestamp)
-            VALUES (?, ?, ?, ?)
-        ''', (customer.cccd, customer.name, customer.ticket_number, customer.timestamp))
+            INSERT INTO customers (cccd, name, ticket_number, timestamp, status)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (customer.cccd, customer.name, customer.ticket_number, customer.timestamp, 'Chưa được phục vụ'))
 
         # Chọn bàn có ít người nhất
         desk_id = get_least_busy_desk(cursor)
@@ -139,7 +140,6 @@ def add_customer(name: str, cccd: str) -> tuple:
     finally:
         if conn:
             conn.close()  # Đóng kết nối sau khi hoàn tất mọi thao tác
-
 
 def get_least_busy_desk(cursor) -> int:
     cursor.execute('''
@@ -253,8 +253,9 @@ def get_registered_customers():
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # Truy vấn dữ liệu bao gồm cả cột 'status'
     cursor.execute('''
-        SELECT name, cccd, ticket_number
+        SELECT name, cccd, ticket_number, status
         FROM customers
     ''')
 
@@ -269,11 +270,13 @@ def get_registered_customers():
         data.append({
             'Họ và tên': row['name'],
             'Số CCCD': row['cccd'],
-            'Số thứ tự': row['ticket_number']
+            'Số thứ tự': row['ticket_number'],
+            'Trạng thái': row['status']  # Hiển thị trạng thái
         })
 
     df = pd.DataFrame(data)
     return df
+
 
 def toggle_list_display():
     if 'show_list' not in st.session_state:
