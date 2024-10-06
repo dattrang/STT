@@ -183,36 +183,57 @@ def enqueue_customer(cursor, desk_id: int, cccd: str) -> int:
     return next_position
 
 def process_next_customer(desk_id: int) -> Optional[Customer]:
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
+    # Truy vấn công dân hiện tại tại bàn
+    cursor.execute('''
+        SELECT current_customer_cccd FROM desks WHERE desk_id = ?
+    ''', (desk_id,))
+    current_customer = cursor.fetchone()
+
+    if current_customer and current_customer['current_customer_cccd']:
+        # Cập nhật trạng thái công dân hiện tại thành "Đã làm xong"
         cursor.execute('''
-            SELECT customers.* FROM queues
-            JOIN customers ON queues.cccd = customers.cccd
-            WHERE desk_id = ?
-            ORDER BY position ASC
-            LIMIT 1
-        ''', (desk_id,))
-        result = cursor.fetchone()
+            UPDATE customers SET status = 'Đã làm xong' WHERE cccd = ?
+        ''', (current_customer['current_customer_cccd'],))
 
-        if result:
-            customer = Customer.from_dict(result)
-            cursor.execute('''
-                UPDATE desks SET current_customer_cccd = ?
-                WHERE desk_id = ?
-            ''', (customer.cccd, desk_id))
-            cursor.execute('''
-                DELETE FROM queues WHERE desk_id = ? AND cccd = ?
-            ''', (desk_id, customer.cccd))
-            conn.commit()
-            return customer
-        else:
-            cursor.execute('''
-                UPDATE desks SET current_customer_cccd = NULL
-                WHERE desk_id = ?
-            ''', (desk_id,))
-            conn.commit()
-            return None
+    # Lấy công dân tiếp theo trong hàng đợi
+    cursor.execute('''
+        SELECT customers.* FROM queues
+        JOIN customers ON queues.cccd = customers.cccd
+        WHERE desk_id = ?
+        ORDER BY position ASC
+        LIMIT 1
+    ''', (desk_id,))
+    next_customer = cursor.fetchone()
+
+    if next_customer:
+        # Cập nhật trạng thái của công dân tiếp theo thành "Đang làm thủ tục"
+        cursor.execute('''
+            UPDATE customers SET status = 'Đang làm thủ tục' WHERE cccd = ?
+        ''', (next_customer['cccd'],))
+
+        # Cập nhật bàn hiện tại đang phục vụ công dân này
+        cursor.execute('''
+            UPDATE desks SET current_customer_cccd = ? WHERE desk_id = ?
+        ''', (next_customer['cccd'], desk_id))
+
+        # Xóa công dân khỏi hàng đợi
+        cursor.execute('''
+            DELETE FROM queues WHERE desk_id = ? AND cccd = ?
+        ''', (desk_id, next_customer['cccd']))
+
+        conn.commit()
+        return Customer.from_dict(next_customer)
+    else:
+        # Không có công dân nào trong hàng đợi
+        cursor.execute('''
+            UPDATE desks SET current_customer_cccd = NULL WHERE desk_id = ?
+        ''', (desk_id,))
+        conn.commit()
+        return None
+
 
 def render_desk_status(desk_id: int):
     conn = get_db_connection()
@@ -361,44 +382,46 @@ def registration_form():
         st.session_state['success_msg'] = ""
 
 def skip_customer(desk_id: int):
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Lấy công dân hiện tại đang phục vụ
+    cursor.execute('''
+        SELECT current_customer_cccd FROM desks WHERE desk_id = ?
+    ''', (desk_id,))
+    current_customer = cursor.fetchone()
+
+    if current_customer and current_customer['current_customer_cccd']:
+        cccd_to_skip = current_customer['current_customer_cccd']
+
+        # Lấy vị trí lớn nhất trong hàng đợi
+        cursor.execute('''
+            SELECT MAX(position) FROM queues WHERE desk_id = ?
+        ''', (desk_id,))
+        max_position = cursor.fetchone()[0] or 0
+
+        # Đẩy công dân hiện tại xuống cuối hàng đợi với trạng thái "Chưa làm thủ tục"
+        new_position = max_position + 1
+        cursor.execute('''
+            INSERT INTO queues (desk_id, cccd, position)
+            VALUES (?, ?, ?)
+        ''', (desk_id, cccd_to_skip, new_position))
 
         cursor.execute('''
-            SELECT current_customer_cccd FROM desks
-            WHERE desk_id = ?
+            UPDATE customers SET status = 'Chưa làm thủ tục' WHERE cccd = ?
+        ''', (cccd_to_skip,))
+
+        # Xóa công dân hiện tại khỏi bàn
+        cursor.execute('''
+            UPDATE desks SET current_customer_cccd = NULL WHERE desk_id = ?
         ''', (desk_id,))
-        result = cursor.fetchone()
 
-        if result and result['current_customer_cccd']:
-            cccd_to_skip = result['current_customer_cccd']
+        conn.commit()
 
-            cursor.execute('''
-                SELECT MAX(position) FROM queues
-                WHERE desk_id = ?
-            ''', (desk_id,))
-            max_position = cursor.fetchone()[0] or 0
-
-            new_position = max_position + 1
-            cursor.execute('''
-                INSERT INTO queues (desk_id, cccd, position)
-                VALUES (?, ?, ?)
-            ''', (desk_id, cccd_to_skip, new_position))
-
-            cursor.execute('''
-                UPDATE desks SET current_customer_cccd = NULL
-                WHERE desk_id = ?
-            ''', (desk_id,))
-
-            conn.commit()
-
-            customer = process_next_customer(desk_id)
-            if customer:
-                announce = f"Mời công dân {customer.name}, số thứ tự {customer.ticket_number}, đến Bàn {desk_id}"
-                st.session_state[f'audio_message_ban{desk_id}'] = announce
-                st.rerun()
-        else:
-            st.warning("Không có công dân nào đang làm thủ tục tại bàn này.")
+        # Gọi công dân tiếp theo
+        process_next_customer(desk_id)
+    else:
+        st.warning("Không có công dân nào đang làm thủ tục tại bàn này.")
 
 def process_customers():
     st.sidebar.header("Xử lý công dân")
