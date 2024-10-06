@@ -419,7 +419,15 @@ def skip_customer(desk_id: int):
         conn.commit()
 
         # Gọi công dân tiếp theo
-        process_next_customer(desk_id)
+        next_customer = process_next_customer(desk_id)
+
+        # Nếu có công dân tiếp theo, phát âm thanh thông báo
+        if next_customer:
+            announce = f"Mời công dân {next_customer.name}, số thứ tự {next_customer.ticket_number}, đến Bàn {desk_id}"
+            audio_file = create_audio(announce)  # Tạo file âm thanh từ thông báo
+            if audio_file:
+                play_audio_autoplay(audio_file)  # Phát âm thanh
+                os.unlink(audio_file)  # Xóa file âm thanh sau khi phát
     else:
         st.warning("Không có công dân nào đang làm thủ tục tại bàn này.")
 
