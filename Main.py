@@ -136,8 +136,7 @@ def add_customer(name: str, cccd: str) -> tuple:
     except sqlite3.OperationalError as e:
         st.error(f"Lỗi cơ sở dữ liệu: {e}")
         return -1, -1, -1
-    finally:
-        conn.close()
+    # Không đóng kết nối ở đây. Kết nối sẽ được quản lý bên ngoài.
 
 
 def get_least_busy_desk(cursor) -> int:
