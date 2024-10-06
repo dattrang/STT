@@ -454,6 +454,7 @@ def process_customers():
     if st.session_state['authenticated']:
         col1, col2 = st.sidebar.columns(2)
 
+        # Nút cho bàn 1
         with col1:
             if st.button("Bỏ qua - Bàn 1"):
                 skip_customer(1)
@@ -466,6 +467,7 @@ def process_customers():
                     st.session_state['audio_desk'] = 1
                     st.rerun()
 
+        # Nút cho bàn 2
         with col2:
             if st.button("Bỏ qua - Bàn 2"):
                 skip_customer(2)
@@ -477,32 +479,11 @@ def process_customers():
                     st.session_state['audio_message_ban2'] = announce
                     st.session_state['audio_desk'] = 2
                     st.rerun()
-        def toggle_list_display():
-            if 'show_list' not in st.session_state:
-            st.session_state['show_list'] = False
 
-            if not st.session_state['show_list']:
-                if st.sidebar.button("Hiển thị danh sách"):
-                    st.session_state['show_list'] = True
-                    st.rerun()
-            else:
-                if st.sidebar.button("Ẩn danh sách"):
-                    st.session_state['show_list'] = False
-                    st.rerun()
-        
-            if st.session_state['show_list']:
-                df = get_registered_customers()
-                st.write(df)
+        # Sau khi nhập mật khẩu đúng, hiển thị nút hiển thị danh sách và tải xuống
+        toggle_list_display()
+        download_customer_list()
 
-        def download_customer_list():
-            df = get_registered_customers()
-            if not df.empty:
-                st.sidebar.download_button(
-                    "Tải xuống danh sách",
-                    data=df.to_csv(index=False, encoding='utf-8-sig', sep=';').encode('utf-8-sig'),
-                    file_name='danh_sach_dang_ky.csv',
-                    mime='text/csv'
-                )
 def main():
     st.title("🎫 Hệ thống xếp hàng")
 
