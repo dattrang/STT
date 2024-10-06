@@ -66,15 +66,24 @@ def play_audio_autoplay(file_path: str):
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    # Tạo bảng 'customers' nếu chưa tồn tại
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS customers (
             cccd TEXT PRIMARY KEY,
             name TEXT,
             ticket_number INTEGER,
-            timestamp REAL,
-            status TEXT DEFAULT 'Chưa được phục vụ'  -- Thêm cột trạng thái
+            timestamp REAL
         )
     ''')
+
+    # Thêm cột 'status' nếu chưa có
+    cursor.execute("PRAGMA table_info(customers)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if 'status' not in columns:
+        cursor.execute('ALTER TABLE customers ADD COLUMN status TEXT DEFAULT "Chưa được phục vụ"')
+
+    # Tạo các bảng khác
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS desks (
             desk_id INTEGER PRIMARY KEY,
@@ -95,6 +104,8 @@ def init_db():
     for desk_id in [1, 2]:
         cursor.execute('INSERT OR IGNORE INTO desks (desk_id) VALUES (?)', (desk_id,))
     conn.commit()
+    conn.close()
+
 
 # Hàm thêm khách hàng mới
 def add_customer(name: str, cccd: str) -> tuple:
