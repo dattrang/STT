@@ -7,6 +7,8 @@ from gtts import gTTS
 import tempfile
 import os
 import base64
+import pandas as pd
+
 # Cấu hình trang Streamlit
 st.set_page_config(
     page_title="Hệ thống đăng ký chờ làm thủ tục",
@@ -28,6 +30,13 @@ class Customer:
     @staticmethod
     def from_dict(data):
         return Customer(**data)
+
+# Kết nối đến cơ sở dữ liệu SQLite
+@st.cache_resource
+def get_db_connection():
+    conn = sqlite3.connect('queue_management.db', check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 # Hàm tạo âm thanh
 def create_audio(text: str) -> Optional[str]:
@@ -52,14 +61,6 @@ def play_audio_autoplay(file_path: str):
         </audio>
         """
         st.markdown(audio_html, unsafe_allow_html=True)
-
-
-# Kết nối đến cơ sở dữ liệu SQLite
-@st.cache_resource
-def get_db_connection():
-    conn = sqlite3.connect('queue_management.db', check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 # Khởi tạo cơ sở dữ liệu
 def init_db():
@@ -119,7 +120,6 @@ def add_customer(name: str, cccd: str) -> tuple:
     position = enqueue_customer(cursor, desk_id, customer.cccd)
 
     conn.commit()
-    
     return position, next_number, desk_id
 
 def get_least_busy_desk(cursor) -> int:
@@ -129,14 +129,14 @@ def get_least_busy_desk(cursor) -> int:
         GROUP BY desk_id
     ''')
     result = cursor.fetchall()
-    
+
     if not result:
         return 1 if time.time() % 2 < 1 else 2
-    
+
     desk_queue_lengths = {1: 0, 2: 0}
     for row in result:
         desk_queue_lengths[row['desk_id']] = row['queue_length']
-    
+
     return 1 if desk_queue_lengths[1] <= desk_queue_lengths[2] else 2
 
 def enqueue_customer(cursor, desk_id: int, cccd: str) -> int:
@@ -152,7 +152,6 @@ def enqueue_customer(cursor, desk_id: int, cccd: str) -> int:
     return next_position
 
 def process_next_customer(desk_id: int) -> Optional[Customer]:
-    # Sử dụng ngữ cảnh `with` để đảm bảo kết nối được mở/đóng đúng cách
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
@@ -184,81 +183,81 @@ def process_next_customer(desk_id: int) -> Optional[Customer]:
             conn.commit()
             return None
 
-def get_desk_status(desk_id: int):
+# Thêm các tính năng hiển thị, ẩn bảng và tải xuống danh sách
+def get_registered_customers():
     conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
-        SELECT customers.* FROM desks
-        LEFT JOIN customers ON desks.current_customer_cccd = customers.cccd
-        WHERE desk_id = ?
-    ''', (desk_id,))
-    current_customer = cursor.fetchone()
-    current_customer = Customer.from_dict(current_customer) if current_customer and current_customer['cccd'] else None
+        SELECT name, cccd, ticket_number
+        FROM customers
+    ''')
 
-    cursor.execute('''
-        SELECT customers.* FROM queues
-        JOIN customers ON queues.cccd = customers.cccd
-        WHERE desk_id = ?
-        ORDER BY position ASC
-    ''', (desk_id,))
-    queue = [Customer.from_dict(row) for row in cursor.fetchall()]
+    rows = cursor.fetchall()
 
-    return current_customer, queue
+    if not rows:
+        st.warning("Không có dữ liệu đăng ký.")
+        return pd.DataFrame()
 
-def render_desk_status(desk_id: int):
-    current_customer, queue = get_desk_status(desk_id)
+    data = []
+    for row in rows:
+        data.append({
+            'Họ và tên': row['name'],
+            'Số CCCD': row['cccd'],
+            'Số thứ tự': row['ticket_number']
+        })
 
-    st.subheader(f"Bàn {desk_id}")
-    st.markdown("##### Đang làm thủ tục:")
-    
-    if current_customer:
-        st.markdown(f"""
-        <div style='background-color: #e6f3ff; padding: 10px; border-radius: 5px;'>
-            <h3 style='color: #0066cc;'>{current_customer.name}</h3>
-            <p>Số thứ tự: {current_customer.ticket_number}</p>
-        </div>
-        """, unsafe_allow_html=True)
+    df = pd.DataFrame(data)
+    return df
+
+def toggle_list_display():
+    # Hiển thị/ẩn danh sách
+    if 'show_list' not in st.session_state:
+        st.session_state['show_list'] = False
+
+    if not st.session_state['show_list']:
+        if st.sidebar.button("Hiển thị danh sách"):
+            st.session_state['show_list'] = True
+            st.rerun()
     else:
-        st.markdown("<p style='color: #666;'>Chưa có công dân làm thủ tục</p>", unsafe_allow_html=True)
+        if st.sidebar.button("Ẩn danh sách"):
+            st.session_state['show_list'] = False
+            st.rerun()
 
-    st.markdown("##### Danh sách chờ:")
+    if st.session_state['show_list']:
+        df = get_registered_customers()
+        st.write(df)  # Hiển thị bảng dữ liệu
 
-    # Tạo vùng danh sách có cuộn khi vượt quá chiều cao 200px
-    list_html = "<div style='height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; border-radius: 5px;'>"
-
-    if queue:
-        for i, customer in enumerate(queue, 1):
-            list_html += f"<p>{i}. {customer.name} - Số {customer.ticket_number}</p>"
-    else:
-        list_html += "<p style='color: #666;'>Không có công dân đăng ký chờ</p>"
-
-    list_html += "</div>"
-
-    st.markdown(list_html, unsafe_allow_html=True)
+def download_customer_list():
+    # Nút tải xuống danh sách
+    df = get_registered_customers()
+    if not df.empty:
+        st.sidebar.download_button(
+            "Tải xuống danh sách",
+            data=df.to_csv(index=False, encoding='utf-8-sig', sep=';').encode('utf-8-sig'),
+            file_name='danh_sach_dang_ky.csv',
+            mime='text/csv'
+        )
 
 def registration_form():
     st.header("Đăng ký xếp hàng lấy số thứ tự")
 
-    # Kiểm tra và thiết lập giá trị ban đầu cho các trường nhập liệu trong session_state
     if 'name' not in st.session_state:
         st.session_state['name'] = ""
     if 'cccd' not in st.session_state:
         st.session_state['cccd'] = ""
 
-    # Xử lý trạng thái thông báo thành công
     if 'success_msg' not in st.session_state:
         st.session_state['success_msg'] = ""
 
     with st.form("register_form"):
-        # Sử dụng session_state để giữ giá trị của các trường
         name = st.text_input("Họ và tên:", value=st.session_state['name'])
         cccd = st.text_input("Số CCCD (12 số):", value=st.session_state['cccd'])
         submitted = st.form_submit_button("Đăng ký")
 
         if submitted:
             if not name or not cccd:
-                st.error("Vui lòng điền đầy đủ thông tin")
+                st.error("Vui lòng điền đủ thông tin")
                 return
 
             if not cccd.isdigit() or len(cccd) != 12:
@@ -267,32 +266,26 @@ def registration_form():
 
             position, ticket_number, desk_id = add_customer(name, cccd)
             if position != -1:
-                # Lưu thông báo thành công trong session_state để đảm bảo nó được hiển thị đầy đủ
                 st.session_state['success_msg'] = (
                     f"Đăng ký thành công! Số thứ tự của bạn là {ticket_number}. "
                     f"Bạn ở vị trí {position} trong hàng đợi tại Bàn {desk_id}."
                 )
 
-                # Làm rỗng các trường thông tin
                 st.session_state['name'] = ""
                 st.session_state['cccd'] = ""
 
-                # Làm mới trang sau khi hiển thị thông báo thành công
                 st.rerun()
             else:
                 st.error("Số CCCD đã được đăng ký")
 
-    # Hiển thị thông báo thành công (nếu có)
     if st.session_state['success_msg']:
         st.success(st.session_state['success_msg'])
         st.session_state['success_msg'] = ""  # Xóa thông báo sau khi hiển thị
 
 def skip_customer(desk_id: int):
-    # Mở kết nối với cơ sở dữ liệu
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
-        # Lấy khách hàng hiện tại đang được phục vụ tại bàn
         cursor.execute('''
             SELECT current_customer_cccd FROM desks
             WHERE desk_id = ?
@@ -302,21 +295,18 @@ def skip_customer(desk_id: int):
         if result and result['current_customer_cccd']:
             cccd_to_skip = result['current_customer_cccd']
 
-            # Lấy vị trí cao nhất hiện tại trong hàng đợi
             cursor.execute('''
                 SELECT MAX(position) FROM queues
                 WHERE desk_id = ?
             ''', (desk_id,))
-            max_position = cursor.fetchone()[0] or 0  # Nếu hàng đợi rỗng, vị trí tối đa là 0
+            max_position = cursor.fetchone()[0] or 0
 
-            # Đẩy khách hàng hiện tại xuống cuối hàng đợi
             new_position = max_position + 1
             cursor.execute('''
                 INSERT INTO queues (desk_id, cccd, position)
                 VALUES (?, ?, ?)
             ''', (desk_id, cccd_to_skip, new_position))
 
-            # Cập nhật bàn hiện tại không có khách hàng phục vụ
             cursor.execute('''
                 UPDATE desks SET current_customer_cccd = NULL
                 WHERE desk_id = ?
@@ -324,13 +314,10 @@ def skip_customer(desk_id: int):
 
             conn.commit()
 
-            # Gọi khách hàng tiếp theo (sử dụng hàm process_next_customer)
             customer = process_next_customer(desk_id)
-
-            # Nếu có khách hàng tiếp theo, phát âm thanh thông báo
             if customer:
                 announce = f"Mời công dân {customer.name}, số thứ tự {customer.ticket_number}, đến Bàn {desk_id}"
-                st.session_state[f'audio_message_ban{desk_id}'] = announce  # Lưu trạng thái thông báo
+                st.session_state[f'audio_message_ban{desk_id}'] = announce
                 st.rerun()
         else:
             st.warning("Không có công dân nào đang làm thủ tục tại bàn này.")
@@ -338,28 +325,23 @@ def skip_customer(desk_id: int):
 def process_customers():
     st.sidebar.header("Xử lý công dân")
 
-    # Đặt mật khẩu đúng (bạn có thể thay đổi mật khẩu này)
     correct_password = "Tanhung@2020"
 
-    # Nếu chưa xác thực, hiển thị ô nhập mật khẩu
     if 'authenticated' not in st.session_state:
         st.session_state['authenticated'] = False
 
     if not st.session_state['authenticated']:
         password = st.sidebar.text_input("Nhập mật khẩu để xử lý", type="password")
 
-        # Kiểm tra nếu mật khẩu đúng
         if password == correct_password:
-            st.session_state['authenticated'] = True  # Đánh dấu đã xác thực
-            st.rerun()  # Tải lại trang để ẩn ô nhập mật khẩu
-        elif password:  # Nếu mật khẩu nhập không đúng
+            st.session_state['authenticated'] = True
+            st.rerun()
+        elif password:
             st.sidebar.error("Mật khẩu không đúng!")
-    
-    # Sau khi xác thực, hiển thị các nút xử lý và nút xóa dữ liệu
+
     if st.session_state['authenticated']:
         col1, col2 = st.sidebar.columns(2)
 
-        # Bàn 1
         with col1:
             if st.button("Bỏ qua - Bàn 1"):
                 skip_customer(1)
@@ -368,11 +350,10 @@ def process_customers():
                 customer = process_next_customer(1)
                 if customer:
                     announce = f"Mời Công dân {customer.name}, số thứ tự {customer.ticket_number}, đến Bàn 1"
-                    st.session_state['audio_message_ban1'] = announce  # Lưu trạng thái cho Bàn 1
+                    st.session_state['audio_message_ban1'] = announce
                     st.session_state['audio_desk'] = 1
                     st.rerun()
 
-        # Bàn 2
         with col2:
             if st.button("Bỏ qua - Bàn 2"):
                 skip_customer(2)
@@ -381,95 +362,46 @@ def process_customers():
                 customer = process_next_customer(2)
                 if customer:
                     announce = f"Mời công dân {customer.name}, số thứ tự {customer.ticket_number}, đến Bàn 2"
-                    st.session_state['audio_message_ban2'] = announce  # Lưu trạng thái cho Bàn 2
+                    st.session_state['audio_message_ban2'] = announce
                     st.session_state['audio_desk'] = 2
                     st.rerun()
 
-        # Hiển thị nút xóa dữ liệu khi mật khẩu đúng
-        if st.sidebar.button('Xoá dữ liệu'):
-            reset_database()
-
-
-def reset_database():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute('DELETE FROM customers')
-        cursor.execute('DELETE FROM desks')
-        cursor.execute('DELETE FROM queues')
-        cursor.execute('INSERT OR IGNORE INTO desks (desk_id) VALUES (1)')
-        cursor.execute('INSERT OR IGNORE INTO desks (desk_id) VALUES (2)')
-        conn.commit()
-        st.success("Cơ sở dữ liệu đã được reset thành công!")
-        st.rerun()
-    except Exception as e:
-        st.error(f"Có lỗi xảy ra khi reset cơ sở dữ liệu: {str(e)}")
-
-def check_status():
-    st.sidebar.header("Kiểm tra số thứ tự")
-    cccd = st.sidebar.text_input("Nhập số CCCD để kiểm tra")
-    if st.sidebar.button("Kiểm tra"):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM customers WHERE cccd = ?', (cccd,))
-        customer = cursor.fetchone()
-        if customer:
-            customer = Customer.from_dict(customer)
-            cursor.execute('SELECT desk_id FROM desks WHERE current_customer_cccd = ?', (cccd,))
-            result = cursor.fetchone()
-            if result:
-                st.sidebar.success(f"Đang làm thủ tục tại Bàn {result['desk_id']}")
-            else:
-                cursor.execute('SELECT desk_id, position FROM queues WHERE cccd = ?', (cccd,))
-                result = cursor.fetchone()
-                if result:
-                    st.sidebar.info(f"Đang chờ tại Bàn {result['desk_id']}, vị trí thứ {result['position']}")
-                else:
-                    st.sidebar.warning("Bạn đã làm thủ tục hoặc chưa đăng ký")
-        else:
-            st.sidebar.error("Không tìm thấy thông tin")
-
 def main():
     st.title("🎫 Hệ thống xếp hàng")
-    
-    # Khởi tạo cơ sở dữ liệu
+
     init_db()
-    
-    # Tạo layout chính
+
     col1, col2 = st.columns(2)
     with col1:
         render_desk_status(1)
     with col2:
         render_desk_status(2)
 
-    # Phát âm thanh cho Bàn 1 nếu có thông báo
     if 'audio_message_ban1' in st.session_state and st.session_state['audio_message_ban1']:
         audio_message = st.session_state['audio_message_ban1']
         st.success(audio_message)
         audio_file = create_audio(audio_message)
         if audio_file:
-            play_audio_autoplay(audio_file)  # Tự động phát âm thanh
+            play_audio_autoplay(audio_file)
             os.unlink(audio_file)
-        del st.session_state['audio_message_ban1']  # Xóa trạng thái sau khi phát xong
+        del st.session_state['audio_message_ban1']
 
-    # Phát âm thanh cho Bàn 2 nếu có thông báo
     if 'audio_message_ban2' in st.session_state and st.session_state['audio_message_ban2']:
         audio_message = st.session_state['audio_message_ban2']
         st.success(audio_message)
         audio_file = create_audio(audio_message)
         if audio_file:
-            play_audio_autoplay(audio_file)  # Tự động phát âm thanh
+            play_audio_autoplay(audio_file)
             os.unlink(audio_file)
-        del st.session_state['audio_message_ban2']  # Xóa trạng thái sau khi phát xong
+        del st.session_state['audio_message_ban2']
 
-    # Form đăng ký
     registration_form()
-    
-    # Xử lý khách hàng và kiểm tra trạng thái
+
     process_customers()
-    check_status()
-    
+
+    # Thêm tính năng hiển thị/ẩn danh sách và tải xuống
+    toggle_list_display()
+    download_customer_list()
 
 if __name__ == "__main__":
     main()
