@@ -32,6 +32,34 @@ class Customer:
     def from_dict(data):
         return Customer(**data)
 
+# Thêm các tính năng hiển thị, ẩn bảng và tải xuống danh sách
+def toggle_list_display():
+    if 'show_list' not in st.session_state:
+        st.session_state['show_list'] = False
+
+    if not st.session_state['show_list']:
+        if st.sidebar.button("Hiển thị danh sách"):
+            st.session_state['show_list'] = True
+            st.rerun()
+    else:
+        if st.sidebar.button("Ẩn danh sách"):
+            st.session_state['show_list'] = False
+            st.rerun()
+
+    if st.session_state['show_list']:
+        df = get_registered_customers()
+        st.write(df)
+
+def download_customer_list():
+    df = get_registered_customers()
+    if not df.empty:
+        st.sidebar.download_button(
+            "Tải xuống danh sách",
+            data=df.to_csv(index=False, encoding='utf-8-sig', sep=';').encode('utf-8-sig'),
+            file_name='danh_sach_dang_ky.csv',
+            mime='text/csv'
+        )
+
 # Kết nối đến cơ sở dữ liệu SQLite
 def get_db_connection():
     db_path = 'queue_management.db'
