@@ -39,6 +39,33 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def check_status():
+    st.sidebar.header("Kiểm tra số thứ tự")
+    cccd = st.sidebar.text_input("Nhập số CCCD để kiểm tra")
+    if st.sidebar.button("Kiểm tra"):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM customers WHERE cccd = ?', (cccd,))
+        customer = cursor.fetchone()
+        if customer:
+            customer = Customer.from_dict(customer)
+            # Kiểm tra nếu công dân đang làm thủ tục tại bàn nào đó
+            cursor.execute('SELECT desk_id FROM desks WHERE current_customer_cccd = ?', (cccd,))
+            result = cursor.fetchone()
+            if result:
+                st.sidebar.success(f"Đang làm thủ tục tại Bàn {result['desk_id']}")
+            else:
+                # Kiểm tra xem công dân đang chờ ở đâu trong hàng đợi
+                cursor.execute('SELECT desk_id, position FROM queues WHERE cccd = ?', (cccd,))
+                result = cursor.fetchone()
+                if result:
+                    st.sidebar.info(f"Đang chờ tại Bàn {result['desk_id']}, vị trí thứ {result['position']}")
+                else:
+                    st.sidebar.warning("Bạn đã làm thủ tục hoặc chưa đăng ký")
+        else:
+            st.sidebar.error("Không tìm thấy thông tin")
+
+            
 # Hàm tạo âm thanh
 def create_audio(text: str) -> Optional[str]:
     try:
@@ -310,34 +337,6 @@ def get_registered_customers():
     df = pd.DataFrame(data)
     return df
 
-
-def toggle_list_display():
-    if 'show_list' not in st.session_state:
-        st.session_state['show_list'] = False
-
-    if not st.session_state['show_list']:
-        if st.sidebar.button("Hiển thị danh sách"):
-            st.session_state['show_list'] = True
-            st.rerun()
-    else:
-        if st.sidebar.button("Ẩn danh sách"):
-            st.session_state['show_list'] = False
-            st.rerun()
-
-    if st.session_state['show_list']:
-        df = get_registered_customers()
-        st.write(df)
-
-def download_customer_list():
-    df = get_registered_customers()
-    if not df.empty:
-        st.sidebar.download_button(
-            "Tải xuống danh sách",
-            data=df.to_csv(index=False, encoding='utf-8-sig', sep=';').encode('utf-8-sig'),
-            file_name='danh_sach_dang_ky.csv',
-            mime='text/csv'
-        )
-
 def registration_form():
     st.header("Đăng ký xếp hàng lấy số thứ tự")
 
@@ -478,18 +477,46 @@ def process_customers():
                     st.session_state['audio_message_ban2'] = announce
                     st.session_state['audio_desk'] = 2
                     st.rerun()
+        def toggle_list_display():
+            if 'show_list' not in st.session_state:
+            st.session_state['show_list'] = False
 
+            if not st.session_state['show_list']:
+                if st.sidebar.button("Hiển thị danh sách"):
+                    st.session_state['show_list'] = True
+                    st.rerun()
+            else:
+                if st.sidebar.button("Ẩn danh sách"):
+                    st.session_state['show_list'] = False
+                    st.rerun()
+        
+            if st.session_state['show_list']:
+                df = get_registered_customers()
+                st.write(df)
+
+        def download_customer_list():
+            df = get_registered_customers()
+            if not df.empty:
+                st.sidebar.download_button(
+                    "Tải xuống danh sách",
+                    data=df.to_csv(index=False, encoding='utf-8-sig', sep=';').encode('utf-8-sig'),
+                    file_name='danh_sach_dang_ky.csv',
+                    mime='text/csv'
+                )
 def main():
     st.title("🎫 Hệ thống xếp hàng")
 
+    # Khởi tạo cơ sở dữ liệu
     init_db()
 
+    # Hiển thị trạng thái của các bàn
     col1, col2 = st.columns(2)
     with col1:
         render_desk_status(1)
     with col2:
         render_desk_status(2)
 
+    # Phát âm thanh cho Bàn 1 nếu có thông báo
     if 'audio_message_ban1' in st.session_state and st.session_state['audio_message_ban1']:
         audio_message = st.session_state['audio_message_ban1']
         st.success(audio_message)
@@ -499,6 +526,7 @@ def main():
             os.unlink(audio_file)
         del st.session_state['audio_message_ban1']
 
+    # Phát âm thanh cho Bàn 2 nếu có thông báo
     if 'audio_message_ban2' in st.session_state and st.session_state['audio_message_ban2']:
         audio_message = st.session_state['audio_message_ban2']
         st.success(audio_message)
@@ -508,9 +536,14 @@ def main():
             os.unlink(audio_file)
         del st.session_state['audio_message_ban2']
 
+    # Form đăng ký
     registration_form()
 
+    # Xử lý công dân
     process_customers()
+
+    # Tính năng kiểm tra số thứ tự (thêm vào sidebar)
+    check_status()
 
     # Thêm tính năng hiển thị/ẩn danh sách và tải xuống
     toggle_list_display()
