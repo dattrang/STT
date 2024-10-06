@@ -183,6 +183,52 @@ def process_next_customer(desk_id: int) -> Optional[Customer]:
             conn.commit()
             return None
 
+def render_desk_status(desk_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT customers.* FROM desks
+        LEFT JOIN customers ON desks.current_customer_cccd = customers.cccd
+        WHERE desks.desk_id = ?
+    ''', (desk_id,))
+    current_customer = cursor.fetchone()
+
+    st.subheader(f"Bàn {desk_id}")
+    st.markdown("##### Đang làm thủ tục:")
+
+    if current_customer and current_customer['cccd']:
+        st.markdown(f"""
+        <div style='background-color: #e6f3ff; padding: 10px; border-radius: 5px;'>
+            <h3 style='color: #0066cc;'>{current_customer['name']}</h3>
+            <p>Số thứ tự: {current_customer['ticket_number']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("<p style='color: #666;'>Chưa có công dân làm thủ tục</p>", unsafe_allow_html=True)
+
+    st.markdown("##### Danh sách chờ:")
+
+    cursor.execute('''
+        SELECT customers.* FROM queues
+        JOIN customers ON queues.cccd = customers.cccd
+        WHERE queues.desk_id = ?
+        ORDER BY position ASC
+    ''', (desk_id,))
+    queue = cursor.fetchall()
+
+    list_html = "<div style='height: 200px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; border-radius: 5px;'>"
+
+    if queue:
+        for i, customer in enumerate(queue, 1):
+            list_html += f"<p>{i}. {customer['name']} - Số {customer['ticket_number']}</p>"
+    else:
+        list_html += "<p style='color: #666;'>Không có công dân đăng ký chờ</p>"
+
+    list_html += "</div>"
+
+    st.markdown(list_html, unsafe_allow_html=True)
+
 # Thêm các tính năng hiển thị, ẩn bảng và tải xuống danh sách
 def get_registered_customers():
     conn = get_db_connection()
@@ -211,7 +257,6 @@ def get_registered_customers():
     return df
 
 def toggle_list_display():
-    # Hiển thị/ẩn danh sách
     if 'show_list' not in st.session_state:
         st.session_state['show_list'] = False
 
@@ -226,10 +271,9 @@ def toggle_list_display():
 
     if st.session_state['show_list']:
         df = get_registered_customers()
-        st.write(df)  # Hiển thị bảng dữ liệu
+        st.write(df)
 
 def download_customer_list():
-    # Nút tải xuống danh sách
     df = get_registered_customers()
     if not df.empty:
         st.sidebar.download_button(
@@ -280,7 +324,7 @@ def registration_form():
 
     if st.session_state['success_msg']:
         st.success(st.session_state['success_msg'])
-        st.session_state['success_msg'] = ""  # Xóa thông báo sau khi hiển thị
+        st.session_state['success_msg'] = ""
 
 def skip_customer(desk_id: int):
     with get_db_connection() as conn:
