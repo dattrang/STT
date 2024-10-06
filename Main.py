@@ -23,6 +23,7 @@ class Customer:
     cccd: str
     ticket_number: int
     timestamp: float
+    status: str = 'Chưa được phục vụ'  # Thêm thuộc tính status với giá trị mặc định
 
     def to_dict(self):
         return asdict(self)
@@ -133,7 +134,7 @@ def add_customer(name: str, cccd: str) -> tuple:
         cursor.execute('''
             INSERT INTO customers (cccd, name, ticket_number, timestamp, status)
             VALUES (?, ?, ?, ?, ?)
-        ''', (customer.cccd, customer.name, customer.ticket_number, customer.timestamp, 'Chưa được phục vụ'))
+        ''', (customer.cccd, customer.name, customer.ticket_number, customer.timestamp, customer.status))
 
         # Chọn bàn có ít người nhất
         desk_id = get_least_busy_desk(cursor)
